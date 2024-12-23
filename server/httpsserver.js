@@ -1,34 +1,39 @@
 import express from "express";
+import https from "https"; // Import HTTPS module
+import http from "http";  // Optional: Keep HTTP for redirection
+import fs from "fs";      // File system module for certificates
 import axios from "axios";
 import FormData from "form-data";
-import fs from "fs";
-import { writeFile, stat } from "node:fs/promises"; // Import `stat` for file size
-import sharp from "sharp"; // For image dimension extraction
+import { writeFile, stat } from "node:fs/promises"; 
+import sharp from "sharp"; 
 import dotenv from "dotenv";
-import fileUpload from "express-fileupload"; // Middleware for handling image uploads
-import cors from "cors"; // Import cors middleware
-import path from "path"; // Import 'path' module for resolving paths
+import fileUpload from "express-fileupload"; 
+import cors from "cors"; 
+import path from "path"; 
 import Replicate from "replicate";
+
 dotenv.config();
+
 const app = express();
-const PORT = 3000;
-
-
-
+const PORT = 3443;
+const HTTPS_PORT = 3000; // New HTTPS port
 
 const replicate = new Replicate({
     auth: process.env.REPLICATE_API_TOKEN,
 });
 
+// Load SSL/TLS Certificates
+const sslOptions = {
+    key: fs.readFileSync("server.key"),     // Private key
+    cert: fs.readFileSync("server.cert"),  // Certificate
+};
 
-
-// Middleware for parsing JSON and handling file uploads
+// Middleware
 app.use(express.json());
-app.use(cors()); // Enable CORS for all routes by default
+app.use(cors());
 app.use(fileUpload());
-const __dirname = path.resolve(); // Get current directory in ES module
+const __dirname = path.resolve();
 app.use("/imagesGen", express.static(path.join(__dirname, "imagesGen")));
-// Set a higher timeout for Express server
 app.use((req, res, next) => {
     req.setTimeout(5 * 60 * 1000); // 5 minutes
     res.setTimeout(5 * 60 * 1000);
@@ -36,9 +41,14 @@ app.use((req, res, next) => {
 });
 
 
-// Route: Server health check
+// HTTPS Server
+https.createServer(sslOptions, app).listen(HTTPS_PORT, () => {
+    console.log(`HTTPS server running on https://localhost:${HTTPS_PORT}`);
+});
+
+// Health Check Route
 app.get("/", (req, res) => {
-    res.send("Hello, World");
+    res.send("Hello, HTTPS World!");
 });
 
 
@@ -170,19 +180,21 @@ app.post('/evaluate', async (req, res) => {
 
         // const scoringPromt4 = `While generating this image i told my AI model to distribute the weight of generated image on making it a total of 100%. Now analyze the given image and tell me out of 100% how much in percentage does the ${scoring_criteria[4].parameter} weighs in the given image. do keep note that i want actual observed values to test the accracy of my image generation model, so do a thorough critical analysis and strictly give response only in the numerical format, no text word is expected as output, only the format that i've told you that is "observed_percentage_in_number". Again im emphasizing that i only want numerical percentage as the output without any bias`
 
-        const outputforScoring = await replicate.run(process.env.minigpt,
-            {
-                input: {
-                    image: `${serverURL}`,
-                    prompt: `${singlePrompt}`,
-                    num_beams: 5,
-                    max_length: 4000,
-                    temperature: 1.33,
-                    max_new_tokens: 100,
-                    repetition_penalty: 3
-                }
-            }
-        );
+        // const outputforScoring = await replicate.run(process.env.minigpt,
+        //     {
+        //         input: {
+        //             // image: `${serverURL}`,
+        //             image: "http://ethixlucifer.eastus2.cloudapp.azure.com:3000/imagesGen/output_0_1734962364802.png",
+        //             top_p: 0.9,
+        //             prompt: `${singlePrompt}`,
+        //             num_beams: 5,
+        //             max_length: 4000,
+        //             temperature: 1.33,
+        //             max_new_tokens: 100,
+        //             repetition_penalty: 3
+        //         }
+        //     }
+        // );
 
         // const outputforScoring0 = await replicate.run(process.env.minigpt,
         //     {
@@ -258,7 +270,7 @@ app.post('/evaluate', async (req, res) => {
         //     }
         // );
 
-        // console.log("======> ", `${outputforScoring}  Minigpt output`) //${outputforScoring1} ${outputforScoring2} ${outputforScoring3} ${outputforScoring4}
+        console.log("======> ", `${outputforScoring}  Minigpt output`) //${outputforScoring1} ${outputforScoring2} ${outputforScoring3} ${outputforScoring4}
 
         // Process and respond with success
         // Example JSON response
@@ -293,8 +305,8 @@ app.post('/evaluate', async (req, res) => {
 
 
 
-// Start the server
-app.listen(PORT, () => {
-    console.log(`Server is running on http://localhost:${PORT}`);
-});
+// // Start the server
+// app.listen(PORT, () => {
+//     console.log(`Server is running on http://localhost:${PORT}`);
+// });
 
